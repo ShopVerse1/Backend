@@ -1,45 +1,42 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import Razorpay from "razorpay";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 const app = express();
+app.use(express.json());
 app.use(cors());
 
-// Simple route to return your API key or base URL
+// 🧩 Route 1 — Get API Base URL
 app.get("/api/config", (req, res) => {
   res.json({ baseUrl: process.env.API_BASE_URL });
 });
 
-const PORT = 5000;
-app.listen(PORT, () => console.log(`✅ Backend running at http://localhost:${PORT}`));
-import express from "express";
-import crypto from "crypto";
+// 🧩 Route 2 — Create Razorpay Order
+app.post("/api/create-order", async (req, res) => {
+  try {
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET,
+    });
 
-const app = express();
-app.use(express.json());
+    const options = {
+      amount: req.body.amount * 100, // amount in paise
+      currency: "INR",
+      receipt: "order_rcptid_" + Date.now(),
+    };
 
-const RAZORPAY_WEBHOOK_SECRET = ""; //
-
-app.post("/api/webhook", (req, res) => {
-  const signature = req.headers["x-razorpay-signature"];
-  const body = JSON.stringify(req.body);
-
-  const expectedSignature = crypto
-    .createHmac("sha256", RAZORPAY_WEBHOOK_SECRET)
-    .update(body)
-    .digest("hex");
-
-  if (signature === expectedSignature) {
-    console.log("✅ Verified payment webhook:", req.body);
-    // Process payment success here (update database, etc.)
-    res.status(200).send("Webhook received");
-  } else {
-    console.log("❌ Invalid signature");
-    res.status(400).send("Invalid signature");
+    const order = await razorpay.orders.create(options);
+    res.json(order);
+  } catch (error) {
+    console.error("❌ Razorpay order creation failed:", error);
+    res.status(500).send("Error creating Razorpay order");
   }
 });
-// 📧 Email route
+
+// 🧩 Route 3 — Send Email Notification
 app.post("/api/send-email", async (req, res) => {
   const { userEmail, subject, message } = req.body;
 
@@ -59,11 +56,14 @@ app.post("/api/send-email", async (req, res) => {
       text: message,
     });
 
-    res.status(200).json({ success: true, message: "Email sent!" });
+    console.log("📧 Email sent successfully to:", userEmail);
+    res.status(200).json({ success: true, message: "Email sent successfully!" });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: "Email failed." });
+    console.error("❌ Email failed:", error);
+    res.status(500).json({ success: false, message: "Failed to send email." });
   }
 });
 
-app.listen(5000, () => console.log("5000"));
+// 🧱 Server Listener
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
