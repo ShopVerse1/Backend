@@ -19,7 +19,7 @@ import crypto from "crypto";
 const app = express();
 app.use(express.json());
 
-const RAZORPAY_WEBHOOK_SECRET = ""; // same as the one you set on dashboard
+const RAZORPAY_WEBHOOK_SECRET = ""; //
 
 app.post("/api/webhook", (req, res) => {
   const signature = req.headers["x-razorpay-signature"];
@@ -39,6 +39,31 @@ app.post("/api/webhook", (req, res) => {
     res.status(400).send("Invalid signature");
   }
 });
+// 📧 Email route
+app.post("/api/send-email", async (req, res) => {
+  const { userEmail, subject, message } = req.body;
 
-app.listen(5000, () => console.log("Server running on port 5000"));
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
 
+    await transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: userEmail,
+      subject: subject,
+      text: message,
+    });
+
+    res.status(200).json({ success: true, message: "Email sent!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Email failed." });
+  }
+});
+
+app.listen(5000, () => console.log("5000"));
